@@ -86,6 +86,6 @@ case "$1" in
     RETVAL=$?
     ;;
   *)
-    echo $"Usage: $prog {full|increment|status|help}"
+    echo $"Usage: $0 {full|increment|status|help}"
     RETVAL=2
 esac
