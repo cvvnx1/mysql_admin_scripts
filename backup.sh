@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# You need write these vars
+# You need comfirm these vars
 exec_mysqldump=/usr/local/mysql/bin/mysqldump
 exec_mysql=/usr/local/mysql/bin/mysql
 exec_mycnf=/usr/local/mysql/bin/my_print_defaults
@@ -13,7 +13,7 @@ opt=
 binlog_dir=/opt/mysql/dbinstance
 back_dir=/opt/dbback
 
-# Don't modify db_connect
+# Do not modify db_connect
 db_connect=
 
 mysql_connect_str(){
