@@ -28,6 +28,7 @@ full_backup(){
   local run_dir=$(pwd)
   [ ! -d ${back_dir} ] && mkdir -pv ${back_dir}
   local nowdate=$(date "+%Y%m%d%H%M%S")
+  mysql_connect_str
   [ -f ${back_dir}/full_${db_name}_${nowdate}.sql ] && echo "Backup file exist: ${back_dir}/full_${db_name}_${nowdate}.sql" && return 1
   ${exec_mysqldump} ${db_connect} --flush-logs --master-data=2 ${opt} ${db_name} > ${back_dir}/full_${db_name}_${nowdate}.sql
   local binlog_point=$(cat ${back_dir}/full_${db_name}_${nowdate}.sql | grep MASTER_LOG_FILE | awk -F"'" '{print $2}')
@@ -43,6 +44,7 @@ increment_backup(){
   local run_dir=$(pwd)
   [ ! -d ${back_dir} ] && mkdir -pv ${back_dir}
   local nowdate=$(date "+%Y%m%d%H%M%S")
+  mysql_connect_str
   local binlog_prefix=$(${exec_mycnf} mysqld | grep log-bin | sed "s/^.*=//")
   local backup_files=$(${exec_mysql} ${db_connect} -e "SHOW BINARY LOGS" | grep ${binlog_prefix} | awk '{print $1}')
   ${exec_mysql} ${db_connect} -e "FLUSH LOGS"
@@ -61,6 +63,7 @@ increment_backup(){
 }
 
 status(){
+  mysql_connect_str
   local binlog_prefix=$(${exec_mycnf} mysqld | grep log-bin | sed "s/^.*=//")
   local backup_files=$(${exec_mysql} ${db_connect} -e "SHOW BINARY LOGS" | grep ${binlog_prefix} | awk '{print $1}')
   for FILE in $backup_files
