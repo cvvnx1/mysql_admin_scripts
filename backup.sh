@@ -20,7 +20,7 @@ mysql_connect_str(){
   if [ "${db_socket}" = "" ]; then
     db_connect="-h${db_host} -u${db_user} -p${db_psw}"
   else
-    db_connect="-s${db_socket}"
+    db_connect="-S${db_socket}"
   fi
 }
 
