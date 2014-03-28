@@ -49,7 +49,7 @@ increment_backup(){
   [ ! -d ${back_dir} ] && mkdir -pv ${back_dir}
   local nowdate=$(date "+%Y%m%d%H%M%S")
   mysql_connect_str
-  local binlog_prefix=$(${exec_mysql} -N -e "SHOW BINARY LOGS" | head -n1 | awk -F"." '{print $1}')
+  local binlog_prefix=$(${exec_mysql} ${db_connect} -N -e "SHOW BINARY LOGS" | head -n1 | awk -F"." '{print $1}')
   local backup_files=$(${exec_mysql} ${db_connect} -e "SHOW BINARY LOGS" | grep ${binlog_prefix} | awk '{print $1}')
   local file_list=""
   ${exec_mysql} ${db_connect} -e "FLUSH LOGS"
