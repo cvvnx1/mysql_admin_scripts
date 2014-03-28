@@ -80,7 +80,7 @@ status(){
   do
     binlog_last=$FILE
   done
-  echo "Binary log point: ${binlog_last}"
+echo "Binary log point: ${binlog_last}"
   return 0
 }
 
