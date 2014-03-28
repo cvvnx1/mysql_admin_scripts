@@ -1,16 +1,16 @@
 #!/bin/bash
 
 # You need comfirm these vars
-exec_mysqldump=/usr/local/mysql/bin/mysqldump
-exec_mysql=/usr/local/mysql/bin/mysql
-exec_mycnf=/usr/local/mysql/bin/my_print_defaults
-db_socket=
+exec_mysqldump=/usr/bin/mysqldump
+exec_mysql=/usr/bin/mysql
+exec_mycnf=/usr/bin/my_print_defaults
+db_socket=/var/lib/mysql/mysql.sock
 db_host=
 db_user=
 db_psw=
 db_name=test
 opt=
-binlog_dir=/opt/mysql/dbinstance
+binlog_dir=/opt/mysql
 back_dir=/opt/dbback
 
 # Do not modify db_connect
@@ -31,11 +31,15 @@ full_backup(){
   mysql_connect_str
   [ -f ${back_dir}/full_${db_name}_${nowdate}.sql ] && echo "Backup file exist: ${back_dir}/full_${db_name}_${nowdate}.sql" && return 1
   ${exec_mysqldump} ${db_connect} --flush-logs --master-data=2 ${opt} ${db_name} > ${back_dir}/full_${db_name}_${nowdate}.sql
-  local binlog_point=$(cat ${back_dir}/full_${db_name}_${nowdate}.sql | grep MASTER_LOG_FILE | awk -F"'" '{print $2}')
-  ${exec_mysql} ${db_connect} -e "PURGE BINARY LOGS TO '${binlog_point}'"
+echo "[$(date "+%x:%X %z")] Dump to ${back_dir}/full_${db_name}_${nowdate}.sql"
+  local binlog_last=$(cat ${back_dir}/full_${db_name}_${nowdate}.sql | grep MASTER_LOG_FILE | awk -F"'" '{print $2}')
+echo "[$(date "+%x:%X %z")] Next binlog is ${binlog_last}"
+  ${exec_mysql} ${db_connect} -e "PURGE BINARY LOGS TO '${binlog_last}'"
+echo "[$(date "+%x:%X %z")] Purge binlog to ${binlog_last}"
   cd ${back_dir}
   tar zcf full_${db_name}_${nowdate}.tar.gz full_${db_name}_${nowdate}.sql
-  rm -f full_${db_name}_${nowdate}.sql
+  rm -f full_${db_name}_${nowdate}.sql && 
+echo "[$(date "+%x:%X %z")] Tar to full_${db_name}_${nowdate}.tar.gz"
   cd ${run_dir}
   return 0
 }
@@ -45,20 +49,26 @@ increment_backup(){
   [ ! -d ${back_dir} ] && mkdir -pv ${back_dir}
   local nowdate=$(date "+%Y%m%d%H%M%S")
   mysql_connect_str
-  local binlog_prefix=$(${exec_mysql} -n -e "SHOW BINARY LOGS" | head -n1 | awk -F"." '{print $1}')
+  local binlog_prefix=$(${exec_mysql} -N -e "SHOW BINARY LOGS" | head -n1 | awk -F"." '{print $1}')
   local backup_files=$(${exec_mysql} ${db_connect} -e "SHOW BINARY LOGS" | grep ${binlog_prefix} | awk '{print $1}')
+  local file_list=""
   ${exec_mysql} ${db_connect} -e "FLUSH LOGS"
   for FILE in $backup_files
   do
     [ -f ${back_dir}/$FILE ] && echo "Backup file exist: ${back_dir}/$FILE" && return 1
-    mv ${binlog_dir}/$FILE ${back_dir}
+    [ -f ${binlog_dir}/$FILE ] && mv ${binlog_dir}/$FILE ${back_dir} && file_list="$FILE ${file_list}" && 
+echo "[$(date "+%x:%X %z")] Backup ${binlog_dir}/$FILE"
     binlog_last=$FILE
   done
-  cd ${back_dir}
-  tar zcf incre_${db_name}_${nowdate}.tar.gz ${backup_files}
-  rm -f ${back_dir}/${backup_files}
-  cd ${run_dir}
+echo "[$(date "+%x:%X %z")] Next binlog is ${binlog_last}"
   ${exec_mysql} ${db_connect} -e "PURGE BINARY LOGS TO '${binlog_last}'"
+echo "[$(date "+%x:%X %z")] Purge binlog to ${binlog_last}"
+  cd ${back_dir}
+  tar zcf incre_${db_name}_${nowdate}.tar.gz ${file_list}
+  rm -f ${back_dir}/${file_list} && 
+echo "[$(date "+%x:%X %z")] Tar to incre_${db_name}_${nowdate}.tar.gz"
+  cd ${run_dir}
+
   return 0
 }
 
