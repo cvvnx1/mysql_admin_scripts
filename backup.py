@@ -149,45 +149,53 @@ class Worker(threading.Thread):
                 print output
             self.event_dict[num].set()
 
+def full_backup():
+    
+
+
 def main():
     try:
         current_user = os.getlogin()
     except:
         current_user = "nobody"
 
+    # Get the runtime options
     usage = "usage: %prog [options]\n Run mysqldump in paralel"
     parser = OptionParser(usage, version=__version__)
-    parser.add_option("-v", "--verbose", action="store_true", dest="verbose", default=False, help="verbose output")
+    parser.add_option("-v", "--verbose", action="store_true", dest="verbose", default=False, help="Verbose output")
+    parser.add_option("-t", "--type", action="store", dest="type", default='full', help="Type of backup: full or increment")
     parser.add_option("-u", "--user", action="store", dest="user", type="string", default=current_user, help="User for login.")
     parser.add_option("-p", "--password", action="store", dest="passwd", type="string", default='', help="Password for login.")
     parser.add_option("-H", "--host", action="store", dest="host", type="string", default='localhost', help="Connect to host.")
-    parser.add_option("-t", "--threads", action="store", dest="threads", type="int", default=5, help="Threads used. Default = 5")
+    parser.add_option("-P", "--port", action="store", dest="port", type="string", default='3306', help="Port for host.")
+    parser.add_option("-T", "--threads", action="store", dest="threads", type="int", default=5, help="Threads used. Default = 5")
     parser.add_option("-s", "--stdout", action="store_true", dest="stdout", default=False, help="Output dumps to stdout instead to files. WARNING: It can exaust all your memory!")
     parser.add_option("-g", "--gzip", action="store_true", dest="gzip", default=False, help="Add gzip compression to files.")
     parser.add_option("-m", "--master-data", action="store_true", dest="master_data", default=False, help="This causes the binary log position and filename to be written to the file 00_master_position.sql.")
     parser.add_option("-d", "--destination", action="store", dest="destination", type="string", default=".", help="Path where to store generated dumps.")
-    parser.add_option("-P", "--parameters", action="store", dest="parameters", type="string", default="", help="Pass parameters directly to mysqldump.")
+    parser.add_option("-o", "--opts", action="store", dest="parameters", type="string", default="", help="Pass option parameters directly to mysqldump.")
     parser.add_option("-i", "--include_database", action="append", dest="included_databases", default=[], help="Databases to be dumped. By default, all databases are dumped. Can be called more than one time.")
     parser.add_option("-e", "--exclude_database", action="append", dest="excluded_databases", default=[], help="Databases to be excluded from the dump. No database is excluded by default. Can be called more than one time.")
-
     (options, args) = parser.parse_args()
 
+    # Initial log
     log = Log(options.verbose)
+
+    # Connect to database
     try:
-        db = Database(log, options.host, options.user, options.passwd)
-        #db = Database(log, options.host, options.user, options.passwd, options.port)
+        db = Database(log, options.host, options.user, options.passwd, options.port)
     except:
         parser.error("Cannot connect to database %s" % options.host)
     db.lockAll()
 
+    # Save the master status
     if options.master_data:
-        if options.gzip:
-            f = gzip.open(options.destination + '/00_master_position.sql', 'w')
-        else:
-            f = open(options.destination + '/00_master_position.sql', 'w')
+        f = open(options.destination + '/00_master_position.sql', 'w')
+        f.write(db.setMaster(db.slaveStatus()))
         f.write('\n')
         f.close()
 
+    # [Full] Initial public queue for threads calls
     q = Queue.Queue()
     x = 0
     for database in db.getDatabases(options.included_databases, options.excluded_databases):
@@ -195,6 +203,7 @@ def main():
             q.put([x, database, table])
             x = x + 1
 
+    # [Full] Initial threads for mysqldump (this step can ouput sql files)
     event_dict = {}
     threads = []
     table_list = []
@@ -205,17 +214,19 @@ def main():
         threads[x].start()
         x = x + 1
 
-    # wait for all threads to finish
+    # [Full] Wait for all threads to finish
     for thread in threads:
         thread.join()
 
+    # Unlock table and close database connection
     db.unlockAll()
     db.close()
 
+    # Pack sql files
     t = time.localtime(time.time())
     cu_time = "%04d%02d%02d%02d%02d%02d" % (t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec)
     cu_file = options.destination + "/" + options.host + "-full-" + cu_time +".tar.gz"
-    log.write("Pack to " + cu_file + ".")
+    log.write("Tar pack to " + cu_file + ".")
     tar = tarfile.open(cu_file, "w:gz")
     for name in table_list:
         log.write("Tar add " + name + ".")
@@ -223,6 +234,7 @@ def main():
         os.remove(name)
 
     tar.close()
+    log.write("Tar pack complete.")
 
 if __name__ == "__main__":
     main()
